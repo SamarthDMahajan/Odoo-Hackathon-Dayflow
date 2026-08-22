@@ -1,6 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import csv
+from io import StringIO
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key_here'
@@ -165,6 +167,34 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
+@app.route('/export_attendance')
+def export_attendance():
+    # Security check: Only Admin can access this API
+    if 'user_id' not in session or session.get('role') != 'Admin / HR':
+        return redirect(url_for('index'))
+        
+    # Join Attendance and User tables to get full details
+    records = db.session.query(Attendance, User).join(User, Attendance.user_id == User.id).all()
+    
+    # Create CSV in memory
+    si = StringIO()
+    cw = csv.writer(si)
+    
+    # Write Headers
+    cw.writerow(['Employee ID', 'Name', 'Date', 'Check In', 'Check Out', 'Status'])
+    
+    # Write Data Rows
+    for att, user in records:
+        cw.writerow([user.emp_id, user.name, att.date, att.check_in, att.check_out, att.status])
+        
+    output = si.getvalue()
+    
+    # Return as a downloadable file
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=attendance_report.csv"}
+    )
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
