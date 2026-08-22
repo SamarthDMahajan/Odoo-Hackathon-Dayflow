@@ -33,6 +33,22 @@
             </button>
         </form>
 
+        <!-- Demo Quick-Login Helper for Evaluators -->
+        <div class="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-center">
+            <p class="text-xs font-bold text-purple-800 mb-2">🚀 Evaluator Shortcut:</p>
+            <button type="button" onclick="fillDemoCredentials()" class="text-xs bg-purple-700 text-white px-3 py-1 rounded hover:bg-purple-800 transition font-semibold">
+                Auto-fill Admin Demo Account
+            </button>
+        </div>
+
+        <script>
+        function fillDemoCredentials() {
+            // Automatically fill test account email and password
+            document.querySelector('input[name="email"]').value = "test@test.com";
+            document.querySelector('input[name="password"]').value = "123";
+        }
+        </script>
+
         <p class="mt-4 text-center text-sm text-gray-600">
             New here?
             <a href="/register" class="font-bold text-purple-700 hover:text-purple-900">Create an account</a>

@@ -9,12 +9,19 @@
 <body class="bg-gray-100">
     <nav class="bg-purple-700 p-4 text-white flex justify-between items-center shadow-md">
         <h1 class="text-xl font-bold">Dayflow HRMS Dashboard</h1>
-        <div>
-            <a href="/payroll" class="bg-green-600 px-4 py-2 rounded hover:bg-green-700 transition font-bold mr-3">Payroll</a>
-            <a href="/audit_logs" class="bg-gray-800 px-4 py-2 rounded hover:bg-gray-700 transition font-bold mr-3 text-white">Audit Logs</a>
-            <a href="/profile" class="bg-indigo-600 px-4 py-2 rounded hover:bg-indigo-700 transition font-bold mr-3 text-white">My Profile</a>
+        <div class="flex items-center">
+            
+            <!-- 🟢 LIVE SYSTEM STATUS TICKER -->
+            <div class="flex items-center space-x-2 bg-purple-900 px-3 py-1.5 rounded-full text-xs font-semibold mr-4 border border-purple-500 shadow-inner">
+                <span class="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
+                <span id="liveClock" class="font-mono tracking-wider text-green-100">System Online</span>
+            </div>
+
+            <a href="/payroll" class="bg-green-600 px-4 py-2 rounded hover:bg-green-700 transition font-bold mr-3 shadow-md">Payroll</a>
+            <a href="/audit_logs" class="bg-gray-800 px-4 py-2 rounded hover:bg-gray-700 transition font-bold mr-3 text-white shadow-md">Audit Logs</a>
+            <a href="/profile" class="bg-indigo-600 px-4 py-2 rounded hover:bg-indigo-700 transition font-bold mr-3 text-white shadow-md">My Profile</a>
             <span class="mr-4 font-semibold">Welcome, {{ name }} ({{ role }})</span>
-            <a href="/logout" class="bg-red-500 px-4 py-2 rounded hover:bg-red-600 transition font-bold">Logout</a>
+            <a href="/logout" class="bg-red-500 px-4 py-2 rounded hover:bg-red-600 transition font-bold shadow-md">Logout</a>
         </div>
     </nav>
 
@@ -194,6 +201,18 @@
             }
         }
     }
+    </script>
+    
+    <!-- Live Clock & Status Script -->
+    <script>
+        function updateLiveClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('liveClock').textContent = `Online | ${timeString}`;
+        }
+        // Run immediately, then update every second
+        updateLiveClock();
+        setInterval(updateLiveClock, 1000);
     </script>
 </body>
 </html>
