@@ -35,6 +35,22 @@ class Leave(db.Model):
     reason = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='Pending')
 
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_name = db.Column(db.String(100), nullable=False)
+    action = db.Column(db.String(200), nullable=False)
+    timestamp = db.Column(db.String(50), nullable=False)
+
+# Helper function to add audit logs easily
+def log_action(user_name, action):
+    new_log = AuditLog(
+        user_name=user_name,
+        action=action,
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
+    db.session.add(new_log)
+    db.session.commit()
+
 # Routes
 @app.route('/')
 def index():
@@ -58,6 +74,8 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
+        log_action(name, f"Registered new account as {role}")
+        flash('Registration successful! Please login.')
         return redirect(url_for('index'))
         
     return render_template('register.html')
@@ -73,6 +91,8 @@ def login():
         session['user_id'] = user.id
         session['role'] = user.role
         session['name'] = user.name
+        
+        log_action(user.name, "Logged into Dayflow HRMS")
         return redirect(url_for('dashboard'))
     else:
         flash('Invalid email or password.')
@@ -86,12 +106,10 @@ def dashboard():
     role = session.get('role', 'Employee')
     today = datetime.now().strftime('%Y-%m-%d')
     
-    # Calculate Analytics for Admin
     total_employees = User.query.count()
     present_today = Attendance.query.filter_by(date=today).count()
     pending_leaves = Leave.query.filter_by(status='Pending').count()
     
-    # Fetch data for admin view or user view
     leaves = Leave.query.all() if role == 'Admin / HR' else Leave.query.filter_by(user_id=session['user_id']).all()
     users = User.query.all() if role == 'Admin / HR' else []
     
@@ -103,6 +121,7 @@ def dashboard():
                            total_employees=total_employees,
                            present_today=present_today,
                            pending_leaves=pending_leaves)
+
 @app.route('/mark_attendance', methods=['POST'])
 def mark_attendance():
     if 'user_id' not in session:
@@ -112,6 +131,7 @@ def mark_attendance():
     today = datetime.now().strftime('%Y-%m-%d')
     
     att = Attendance.query.filter_by(user_id=session['user_id'], date=today).first()
+    user_name = session.get('name', 'User')
     
     if action == 'check_in':
         if not att:
@@ -123,10 +143,14 @@ def mark_attendance():
             )
             db.session.add(new_att)
             db.session.commit()
+            log_action(user_name, "Checked in for daily attendance")
+            flash('Checked in successfully!')
     elif action == 'check_out':
         if att:
             att.check_out = datetime.now().strftime('%H:%M:%S')
             db.session.commit()
+            log_action(user_name, "Checked out of daily attendance")
+            flash('Checked out successfully!')
             
     return redirect(url_for('dashboard'))
 
@@ -149,6 +173,8 @@ def apply_leave():
     )
     db.session.add(new_leave)
     db.session.commit()
+    
+    log_action(session.get('name'), f"Applied for {leave_type} ({start_date} to {end_date})")
     flash('Leave application submitted successfully!')
     return redirect(url_for('dashboard'))
 
@@ -160,41 +186,40 @@ def update_leave(leave_id, status):
     leave = Leave.query.get_or_404(leave_id)
     leave.status = status
     db.session.commit()
+    
+    log_action(session.get('name'), f"Updated leave request #{leave_id} to {status}")
+    flash(f'Leave request marked as {status}!')
     return redirect(url_for('dashboard'))
 
 @app.route('/logout')
 def logout():
+    log_action(session.get('name', 'User'), "Logged out of system")
     session.clear()
     return redirect(url_for('index'))
 
 @app.route('/export_attendance')
 def export_attendance():
-    # Security check: Only Admin can access this API
     if 'user_id' not in session or session.get('role') != 'Admin / HR':
         return redirect(url_for('index'))
         
-    # Join Attendance and User tables to get full details
     records = db.session.query(Attendance, User).join(User, Attendance.user_id == User.id).all()
     
-    # Create CSV in memory
     si = StringIO()
     cw = csv.writer(si)
-    
-    # Write Headers
     cw.writerow(['Employee ID', 'Name', 'Date', 'Check In', 'Check Out', 'Status'])
     
-    # Write Data Rows
     for att, user in records:
         cw.writerow([user.emp_id, user.name, att.date, att.check_in, att.check_out, att.status])
         
     output = si.getvalue()
+    log_action(session.get('name'), "Downloaded attendance CSV compliance report")
     
-    # Return as a downloadable file
     return Response(
         output,
         mimetype="text/csv",
         headers={"Content-disposition": "attachment; filename=attendance_report.csv"}
     )
+
 @app.route('/payroll')
 def payroll():
     if 'user_id' not in session:
@@ -202,13 +227,11 @@ def payroll():
     
     role = session.get('role', 'Employee')
     
-    # Calculate payroll data for all users if Admin, or just current user
     if role == 'Admin / HR':
         users = User.query.all()
         payroll_data = []
         for u in users:
             days_present = Attendance.query.filter_by(user_id=u.id, status='Present').count()
-            # Base salary calculation: e.g., $100 per day present
             total_salary = days_present * 100
             payroll_data.append({
                 'emp_id': u.emp_id,
@@ -230,6 +253,15 @@ def payroll():
         }]
         
     return render_template('payroll.html', payroll_data=payroll_data, name=session.get('name'), role=role)
+
+@app.route('/audit_logs')
+def audit_logs():
+    if 'user_id' not in session or session.get('role') != 'Admin / HR':
+        return redirect(url_for('dashboard'))
+    
+    logs = AuditLog.query.order_by(AuditLog.id.desc()).all()
+    return render_template('audit_logs.html', logs=logs, name=session.get('name'), role=session.get('role'))
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
