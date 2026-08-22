@@ -24,7 +24,6 @@ class Attendance(db.Model):
     check_out = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), default='Present')
 
-
 class Leave(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -81,8 +80,27 @@ def login():
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('index'))
-    return render_template('dashboard.html', name=session.get('name', 'User'), role=session.get('role', 'Employee'))
-
+    
+    role = session.get('role', 'Employee')
+    today = datetime.now().strftime('%Y-%m-%d')
+    
+    # Calculate Analytics for Admin
+    total_employees = User.query.count()
+    present_today = Attendance.query.filter_by(date=today).count()
+    pending_leaves = Leave.query.filter_by(status='Pending').count()
+    
+    # Fetch data for admin view or user view
+    leaves = Leave.query.all() if role == 'Admin / HR' else Leave.query.filter_by(user_id=session['user_id']).all()
+    users = User.query.all() if role == 'Admin / HR' else []
+    
+    return render_template('dashboard.html', 
+                           name=session.get('name', 'User'), 
+                           role=role, 
+                           leaves=leaves,
+                           users=users,
+                           total_employees=total_employees,
+                           present_today=present_today,
+                           pending_leaves=pending_leaves)
 @app.route('/mark_attendance', methods=['POST'])
 def mark_attendance():
     if 'user_id' not in session:
@@ -109,11 +127,6 @@ def mark_attendance():
             db.session.commit()
             
     return redirect(url_for('dashboard'))
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
 
 @app.route('/apply_leave', methods=['POST'])
 def apply_leave():
@@ -147,6 +160,10 @@ def update_leave(leave_id, status):
     db.session.commit()
     return redirect(url_for('dashboard'))
 
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     with app.app_context():
