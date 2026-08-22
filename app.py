@@ -195,6 +195,41 @@ def export_attendance():
         mimetype="text/csv",
         headers={"Content-disposition": "attachment; filename=attendance_report.csv"}
     )
+@app.route('/payroll')
+def payroll():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+    
+    role = session.get('role', 'Employee')
+    
+    # Calculate payroll data for all users if Admin, or just current user
+    if role == 'Admin / HR':
+        users = User.query.all()
+        payroll_data = []
+        for u in users:
+            days_present = Attendance.query.filter_by(user_id=u.id, status='Present').count()
+            # Base salary calculation: e.g., $100 per day present
+            total_salary = days_present * 100
+            payroll_data.append({
+                'emp_id': u.emp_id,
+                'name': u.name,
+                'role': u.role,
+                'days_present': days_present,
+                'salary': total_salary
+            })
+    else:
+        u = User.query.get(session['user_id'])
+        days_present = Attendance.query.filter_by(user_id=u.id, status='Present').count()
+        total_salary = days_present * 100
+        payroll_data = [{
+            'emp_id': u.emp_id,
+            'name': u.name,
+            'role': u.role,
+            'days_present': days_present,
+            'salary': total_salary
+        }]
+        
+    return render_template('payroll.html', payroll_data=payroll_data, name=session.get('name'), role=role)
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
