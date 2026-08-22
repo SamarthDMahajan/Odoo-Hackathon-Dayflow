@@ -4,7 +4,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key_here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dayflow.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dayflow2.db'
 db = SQLAlchemy(app)
 
 # Database Models
@@ -23,6 +23,16 @@ class Attendance(db.Model):
     check_in = db.Column(db.String(20), nullable=True)
     check_out = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), default='Present')
+
+
+class Leave(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    leave_type = db.Column(db.String(50), nullable=False)
+    start_date = db.Column(db.String(20), nullable=False)
+    end_date = db.Column(db.String(20), nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='Pending')
 
 # Routes
 @app.route('/')
@@ -104,6 +114,39 @@ def mark_attendance():
 def logout():
     session.clear()
     return redirect(url_for('index'))
+
+@app.route('/apply_leave', methods=['POST'])
+def apply_leave():
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
+        
+    leave_type = request.form.get('leave_type')
+    start_date = request.form.get('start_date')
+    end_date = request.form.get('end_date')
+    reason = request.form.get('reason')
+    
+    new_leave = Leave(
+        user_id=session['user_id'],
+        leave_type=leave_type,
+        start_date=start_date,
+        end_date=end_date,
+        reason=reason
+    )
+    db.session.add(new_leave)
+    db.session.commit()
+    flash('Leave application submitted successfully!')
+    return redirect(url_for('dashboard'))
+
+@app.route('/update_leave/<int:leave_id>/<status>')
+def update_leave(leave_id, status):
+    if 'user_id' not in session or session.get('role') != 'Admin / HR':
+        return redirect(url_for('index'))
+        
+    leave = Leave.query.get_or_404(leave_id)
+    leave.status = status
+    db.session.commit()
+    return redirect(url_for('dashboard'))
+
 
 if __name__ == '__main__':
     with app.app_context():
